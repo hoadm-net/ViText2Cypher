@@ -45,3 +45,4 @@ dataset/*.json
 
 # Translated output files
 dataset/translated_data_*.json
+results/

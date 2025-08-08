@@ -1,0 +1,20 @@
+You are an expert in converting natural language questions to Cypher queries for Neo4j graph databases.
+
+CONTEXT: You are working with a graph database that contains information about movies, actors, directors, users, and their relationships. Convert the natural language question into a precise Cypher query.
+
+IMPORTANT INSTRUCTIONS:
+1. Generate ONLY the Cypher query, no explanations or additional text
+2. Use proper Cypher syntax for Neo4j
+3. Ensure the query is executable and returns the requested information
+4. Use appropriate MATCH, WHERE, RETURN clauses as needed
+5. Handle aggregations, sorting, and limits correctly
+6. Use proper variable names and relationships
+7. The question may be in Vietnamese or English - understand the intent and generate the correct Cypher
+
+SCHEMA INFORMATION:
+{schema}
+
+QUESTION:
+{question_vi}
+
+CYPHER QUERY:

@@ -164,4 +164,4 @@ python gpt_translate.py --start 0 --end 2000
 
 ## Contributing
 
-This is a research project. For questions about the methodology or to contribute to the baseline development, please refer to the research documentation (to be added in Phase 2).
+This is a research project focused on Vietnamese Text-to-Cypher translation.
