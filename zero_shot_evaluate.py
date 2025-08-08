@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Zero-shot multilingual to Cypher conversion with evaluation
+Zero-shot multilingual to Cypher conversion with enhanced evaluation metrics
 """
 
 import argparse
@@ -16,58 +16,13 @@ import openai
 from dotenv import load_dotenv
 from langchain.prompts import PromptTemplate
 from tqdm import tqdm
-import nltk
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
+
+# Import enhanced evaluation modules
+from mint.evaluator import CypherEvaluator
+from mint.cypher_normalizer import CypherNormalizer
 
 # Load environment variables
 load_dotenv()
-
-def setup_nltk():
-    """Setup NLTK requirements"""
-    try:
-        nltk.data.find('tokenizers/punkt')
-    except LookupError:
-        nltk.download('punkt')
-
-def normalize_cypher(cypher: str) -> str:
-    """Normalize Cypher query for comparison"""
-    if not cypher:
-        return ""
-
-    # Remove extra whitespace and newlines
-    normalized = re.sub(r'\s+', ' ', cypher.strip())
-
-    # Remove trailing semicolon if present
-    normalized = normalized.rstrip(';')
-
-    # Convert to lowercase for comparison
-    normalized = normalized.lower()
-
-    return normalized
-
-def calculate_exact_match(predicted: str, gold: str) -> bool:
-    """Calculate exact match between predicted and gold Cypher"""
-    pred_norm = normalize_cypher(predicted)
-    gold_norm = normalize_cypher(gold)
-    return pred_norm == gold_norm
-
-def calculate_bleu(predicted: str, gold: str) -> float:
-    """Calculate BLEU score between predicted and gold Cypher"""
-    if not predicted or not gold:
-        return 0.0
-
-    # Tokenize the queries
-    pred_tokens = predicted.split()
-    gold_tokens = [gold.split()]  # BLEU expects list of reference sentences
-
-    # Use smoothing function to handle edge cases
-    smoothing = SmoothingFunction().method1
-
-    try:
-        score = sentence_bleu(gold_tokens, pred_tokens, smoothing_function=smoothing)
-        return score
-    except:
-        return 0.0
 
 def generate_cypher(client: openai.OpenAI, question: str, schema: str, model: str, max_tokens: int) -> str:
     """Generate Cypher query from question using zero-shot prompting"""
@@ -121,11 +76,13 @@ def create_results_folder(start: int, end: int, lang: str = 'vi') -> str:
     return str(results_path)
 
 def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
-    """Evaluate zero-shot performance on questions"""
+    """Evaluate zero-shot performance with enhanced metrics"""
 
     # Setup
-    setup_nltk()
     start_time = time.time()
+
+    # Initialize enhanced evaluator
+    evaluator = CypherEvaluator()
 
     # Load environment variables
     api_key = os.getenv("OPENAI_API_KEY")
@@ -166,9 +123,9 @@ def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
     print(f"Results will be saved to: {results_folder}")
 
     sample_results = []
-    exact_matches = 0
-    total_bleu = 0.0
     questions_used = 0
+    predictions = []
+    gold_standards = []
 
     for i, sample in enumerate(tqdm(data, desc="Generating Cypher queries")):
         # Get both question types from the sample
@@ -205,15 +162,10 @@ def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
         # Generate Cypher using the selected question
         predicted_cypher = generate_cypher(client, question, schema, model, max_tokens)
 
-        # Calculate metrics
-        exact_match = calculate_exact_match(predicted_cypher, gold_cypher)
-        bleu_score = calculate_bleu(predicted_cypher, gold_cypher)
+        # Use enhanced evaluator for comprehensive metrics
+        evaluation_result = evaluator.evaluate_single(predicted_cypher, gold_cypher)
 
-        if exact_match:
-            exact_matches += 1
-        total_bleu += bleu_score
-
-        # Store sample result
+        # Store sample result with all metrics
         sample_result = {
             'sample_id': start + i,
             'question_en': question_en,
@@ -222,30 +174,48 @@ def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
             'schema': schema,
             'cypher': gold_cypher,
             'predicted_cypher': predicted_cypher,
-            'exact_match': exact_match,
-            'bleu_score': bleu_score
+            **evaluation_result  # Include all evaluation metrics
         }
         sample_results.append(sample_result)
+
+        # Collect for batch evaluation
+        predictions.append(predicted_cypher)
+        gold_standards.append(gold_cypher)
 
     # Calculate execution time
     end_time = time.time()
     execution_time = end_time - start_time
 
+    # Calculate batch metrics (including BERTScore)
+    batch_metrics = evaluator.evaluate_batch(predictions, gold_standards)
+
     # Calculate overall metrics
     total_samples = len(sample_results)
-    exact_match_rate = exact_matches / total_samples if total_samples > 0 else 0
-    avg_bleu = total_bleu / total_samples if total_samples > 0 else 0
     language_coverage = questions_used / total_samples if total_samples > 0 else 0
 
-    print(f"\nEVALUATION RESULTS:")
+    print(f"\nENHANCED EVALUATION RESULTS:")
     print(f"Total samples: {total_samples}")
     print(f"Language: {'Vietnamese' if lang == 'vi' else 'English'}")
     print(f"{lang.upper()} questions used: {questions_used} ({language_coverage:.2%})")
     print(f"Execution time: {execution_time:.2f} seconds")
-    print(f"Exact Match: {exact_matches}/{total_samples} ({exact_match_rate:.4f})")
-    print(f"Average BLEU: {avg_bleu:.4f}")
+    print(f"\n=== TEXT-BASED METRICS ===")
+    print(f"Exact Match (Normalized): {batch_metrics['exact_match_rate']:.4f}")
+    print(f"Exact Match (Raw): {batch_metrics['exact_match_raw_rate']:.4f}")
+    print(f"BLEU Score: {batch_metrics['average_bleu']:.4f}")
+    print(f"ROUGE-1: {batch_metrics['average_rouge1']:.4f}")
+    print(f"ROUGE-2: {batch_metrics['average_rouge2']:.4f}")
+    print(f"ROUGE-L: {batch_metrics['average_rougeL']:.4f}")
+    print(f"METEOR Score: {batch_metrics['average_meteor']:.4f}")
+    print(f"\n=== EMBEDDING-BASED METRICS ===")
+    print(f"BERTScore Precision: {batch_metrics['average_bert_precision']:.4f}")
+    print(f"BERTScore Recall: {batch_metrics['average_bert_recall']:.4f}")
+    print(f"BERTScore F1: {batch_metrics['average_bert_f1']:.4f}")
+    print(f"\n=== SEMANTIC METRICS ===")
+    print(f"Semantic Similarity: {batch_metrics['average_semantic_similarity']:.4f}")
+    print(f"\n=== SYNTAX VALIDATION ===")
+    print(f"Syntax Valid Rate: {batch_metrics['syntax_valid_rate']:.4f}")
 
-    # Save overview file
+    # Save overview file with enhanced metrics
     overview_data = {
         'experiment_info': {
             'timestamp': datetime.now().isoformat(),
@@ -262,9 +232,26 @@ def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
             'questions_used': questions_used,
             'language_coverage': language_coverage,
             'execution_time_seconds': execution_time,
-            'exact_match_count': exact_matches,
-            'exact_match_rate': exact_match_rate,
-            'average_bleu_score': avg_bleu
+
+            # Text-based metrics
+            'exact_match_rate': batch_metrics['exact_match_rate'],
+            'exact_match_raw_rate': batch_metrics['exact_match_raw_rate'],
+            'average_bleu_score': batch_metrics['average_bleu'],
+            'average_rouge1': batch_metrics['average_rouge1'],
+            'average_rouge2': batch_metrics['average_rouge2'],
+            'average_rougeL': batch_metrics['average_rougeL'],
+            'average_meteor': batch_metrics['average_meteor'],
+
+            # Embedding-based metrics
+            'average_bert_precision': batch_metrics['average_bert_precision'],
+            'average_bert_recall': batch_metrics['average_bert_recall'],
+            'average_bert_f1': batch_metrics['average_bert_f1'],
+
+            # Semantic metrics
+            'average_semantic_similarity': batch_metrics['average_semantic_similarity'],
+
+            # Syntax validation
+            'syntax_valid_rate': batch_metrics['syntax_valid_rate']
         }
     }
 
@@ -277,11 +264,12 @@ def evaluate_zero_shot(start: int = 0, end: int = None, lang: str = 'vi'):
     with open(samples_path, 'w', encoding='utf-8') as f:
         json.dump(sample_results, f, ensure_ascii=False, indent=2)
 
-    print(f"Overview saved to: {overview_path}")
-    print(f"Sample results saved to: {samples_path}")
+    print(f"\nResults saved to: {results_folder}")
+    print(f"Overview: {overview_path}")
+    print(f"Detailed results: {samples_path}")
 
 def main():
-    parser = argparse.ArgumentParser(description="Zero-shot multilingual to Cypher evaluation")
+    parser = argparse.ArgumentParser(description="Zero-shot multilingual to Cypher evaluation with enhanced metrics")
     parser.add_argument("--start", type=int, default=0, help="Start index (default: 0)")
     parser.add_argument("--end", type=int, help="End index (default: all samples)")
     parser.add_argument("--lang", choices=['vi', 'en'], default='vi',
