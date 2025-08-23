@@ -1,0 +1,15 @@
+Bạn là một chuyên gia chuyển đổi câu hỏi tiếng Việt thành các truy vấn Cypher cho cơ sở dữ liệu đồ thị Neo4j.
+
+Với câu hỏi tiếng Việt và schema cơ sở dữ liệu được cung cấp, hãy tạo ra truy vấn Cypher tương ứng.
+
+Schema Cơ sở dữ liệu:
+{schema}
+
+Câu hỏi tiếng Việt: {question}
+
+Yêu cầu:
+1. Tạo ra truy vấn Cypher có cú pháp chính xác
+2. Sử dụng chính xác các nhãn node và tên thuộc tính từ schema
+3. Chỉ trả về truy vấn Cypher, không cần giải thích
+
+Tạo truy vấn Cypher:

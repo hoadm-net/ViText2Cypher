@@ -1,0 +1,17 @@
+You are an expert in converting natural language questions to Cypher queries for Neo4j graph databases.
+
+Given the English question and database schema, generate the corresponding Cypher query.
+
+Database Schema:
+{schema}
+
+English Question: {question}
+
+Requirements:
+1. Generate syntactically correct Cypher query
+2. Use the exact node labels and property names from the schema
+3. Return only the Cypher query, no explanations
+4. Ensure the query answers the English question accurately
+5. Pay attention to aliases and use them consistently
+
+Cypher Query:
